@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>kanishka. — content engine</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #070707; --surface: #0f0f0f; --border: #1c1c1c;
+      --text: #ede8df; --muted: #6e6a64; --accent: #d4a96a;
+      --user-bg: #13110d; --user-border: #2a2118;
+    }
+    html, body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    body { background: var(--bg); color: var(--text); display: flex; flex-direction: column; overflow: hidden; -webkit-font-smoothing: antialiased; }
+
+    header { flex-shrink: 0; padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .logo { }
+    .logo-name { font-size: 13px; font-weight: 500; }
+    .logo-sub { font-size: 11px; color: var(--muted); opacity: 0.55; margin-top: 1px; }
+
+    .tabs { display: none; gap: 4px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; }
+    .tab { padding: 6px 12px; font-size: 12px; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--muted); font-family: inherit; transition: all 0.15s; }
+    .tab.active { background: var(--accent); color: #070707; font-weight: 500; }
+    .hdr-right { font-size: 11px; color: var(--muted); opacity: 0.45; }
+
+    main { flex: 1; display: flex; overflow: hidden; }
+
+    /* Chat */
+    .chat { width: 46%; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .msgs { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+    .msgs::-webkit-scrollbar { width: 3px; }
+    .msgs::-webkit-scrollbar-thumb { background: #1c1c1c; border-radius: 2px; }
+
+    .row { display: flex; }
+    .row.user { justify-content: flex-end; }
+    .bubble { max-width: 88%; padding: 11px 15px; font-size: 13px; line-height: 1.65; white-space: pre-wrap; word-break: break-word; }
+    .row.user .bubble { background: var(--user-bg); border: 1px solid var(--user-border); border-radius: 18px 18px 4px 18px; color: var(--text); }
+    .row.assistant .bubble { background: var(--surface); border: 1px solid var(--border); border-radius: 18px 18px 18px 4px; color: var(--text); }
+
+    .wrap { max-width: 88%; }
+    .save-btn { display: block; margin-top: 5px; margin-left: 6px; font-size: 11px; color: var(--muted); background: none; border: none; cursor: pointer; opacity: 0; transition: opacity 0.15s, color 0.15s; font-family: inherit; padding: 0; }
+    .wrap:hover .save-btn { opacity: 1; }
+    .save-btn:hover { color: var(--accent); }
+    .save-btn.done { opacity: 1 !important; color: var(--accent); }
+
+    .dots { display: flex; gap: 5px; align-items: center; height: 18px; }
+    .dot { width: 6px; height: 6px; background: rgba(212,169,106,0.55); border-radius: 50%; animation: bop 1s infinite; }
+    .dot:nth-child(2) { animation-delay: 0.15s; }
+    .dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes bop { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+    .input-area { flex-shrink: 0; padding: 10px 16px 16px; }
+    .input-box { display: flex; align-items: flex-end; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 10px 14px; transition: border-color 0.15s; }
+    .input-box:focus-within { border-color: rgba(110,106,100,0.4); }
+    textarea { flex: 1; background: transparent; border: none; outline: none; color: var(--text); font-size: 13px; line-height: 1.5; resize: none; max-height: 120px; font-family: inherit; }
+    textarea::placeholder { color: rgba(110,106,100,0.55); }
+    .send { flex-shrink: 0; width: 32px; height: 32px; background: var(--accent); border: none; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: opacity 0.15s; }
+    .send:disabled { opacity: 0.22; cursor: not-allowed; }
+    .send:not(:disabled):hover { opacity: 0.8; }
+    .hint { font-size: 10px; color: rgba(110,106,100,0.4); text-align: center; margin-top: 6px; }
+
+    /* Workspace */
+    .workspace { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    .ws-header { flex-shrink: 0; padding: 14px 16px 10px; border-bottom: 1px solid var(--border); }
+    .ws-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+    .ws-title { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: rgba(237,232,223,0.38); }
+    .ws-count { font-size: 11px; color: var(--muted); }
+    .filters { display: flex; gap: 6px; overflow-x: auto; }
+    .filters::-webkit-scrollbar { display: none; }
+    .f-btn { flex-shrink: 0; padding: 4px 12px; font-size: 11px; border-radius: 20px; border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+    .f-btn.active { border-color: rgba(212,169,106,0.55); color: var(--accent); background: rgba(212,169,106,0.07); }
+    .f-btn:not(.active):hover { border-color: rgba(110,106,100,0.4); color: rgba(237,232,223,0.6); }
+
+    .ideas { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .ideas::-webkit-scrollbar { width: 3px; }
+    .ideas::-webkit-scrollbar-thumb { background: #1c1c1c; border-radius: 2px; }
+
+    .empty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 24px; }
+    .empty-icon { width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; margin-bottom: 14px; opacity: 0.35; }
+    .empty-t { font-size: 13px; color: var(--muted); margin-bottom: 5px; }
+    .empty-s { font-size: 11px; color: var(--muted); opacity: 0.55; line-height: 1.5; }
+
+    .card { border: 1px solid var(--border); border-radius: 16px; background: var(--surface); overflow: hidden; }
+    .card-hdr { padding: 12px 14px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; cursor: pointer; transition: background 0.1s; }
+    .card-hdr:hover { background: rgba(255,255,255,0.012); }
+    .card-meta { flex: 1; min-width: 0; }
+    .card-fmt { font-size: 10px; color: rgba(212,169,106,0.65); font-weight: 500; margin-bottom: 2px; }
+    .card-seed { font-size: 13px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .card-prev { font-size: 11px; color: var(--muted); margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.5; }
+    .card-r { display: flex; align-items: center; gap: 8px; flex-shrink: 0; margin-top: 2px; }
+    .card-date { font-size: 11px; color: var(--muted); }
+    .chev { color: var(--muted); transition: transform 0.2s; }
+    .chev.open { transform: rotate(180deg); }
+    .card-body { display: none; padding: 0 14px 14px; }
+    .card-body.open { display: block; }
+    .card-divider { border: none; border-top: 1px solid var(--border); margin-bottom: 12px; }
+    .card-content { font-size: 12px; line-height: 1.72; white-space: pre-wrap; word-break: break-word; margin-bottom: 12px; }
+    .card-actions { display: flex; gap: 8px; }
+    .c-btn { padding: 5px 12px; font-size: 11px; border: 1px solid var(--border); border-radius: 10px; background: transparent; color: var(--muted); cursor: pointer; font-family: inherit; transition: all 0.15s; }
+    .c-btn:hover { color: var(--text); border-color: rgba(110,106,100,0.45); }
+    .c-btn.del:hover { color: #f87171; border-color: rgba(248,113,113,0.3); }
+
+    @media (max-width: 768px) {
+      .tabs { display: flex; }
+      .chat { width: 100%; border-right: none; }
+      .workspace { display: none; }
+      .chat.hidden { display: none; }
+      .workspace.show { display: flex; }
+      .hdr-right { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-name">kanishka.</div>
+    <div class="logo-sub">content engine</div>
+  </div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('chat')">Research</button>
+    <button class="tab" id="ws-tab" onclick="switchTab('workspace')">Ideas</button>
+  </div>
+  <div class="hdr-right" id="hdr-count">0 ideas saved</div>
+</header>
+
+<main>
+  <div class="chat" id="chat">
+    <div class="msgs" id="msgs">
+      <div class="row assistant">
+        <div class="wrap">
+          <div class="bubble">Hey Kanishka. What's the seed today?</div>
+        </div>
+      </div>
+    </div>
+    <div class="input-area">
+      <div class="input-box">
+        <textarea id="inp" rows="1" placeholder="Drop a seed — a thing, a feeling, a claim..." onkeydown="onKey(event)" oninput="onInput(this)"></textarea>
+        <button class="send" id="send" onclick="send()" disabled>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+            <path d="M22 2L11 13" stroke="#070707" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="#070707" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="hint">Enter to send · Shift+Enter for new line</div>
+    </div>
+  </div>
+
+  <div class="workspace" id="ws">
+    <div class="ws-header">
+      <div class="ws-top">
+        <span class="ws-title">Workspace</span>
+        <span class="ws-count" id="ws-count">0 ideas</span>
+      </div>
+      <div class="filters">
+        <button class="f-btn active" onclick="setFilter('all',this)">all</button>
+        <button class="f-btn" onclick="setFilter('video',this)">video</button>
+        <button class="f-btn" onclick="setFilter('carousel',this)">carousel</button>
+        <button class="f-btn" onclick="setFilter('post',this)">post</button>
+        <button class="f-btn" onclick="setFilter('research',this)">research</button>
+      </div>
+    </div>
+    <div class="ideas" id="ideas"></div>
+  </div>
+</main>
+
+<script>
+let KEY = localStorage.getItem('k_groq_key') || '';
+if (!KEY) {
+  KEY = prompt('Paste your Groq API key (free at console.groq.com):') || '';
+  if (KEY) localStorage.setItem('k_groq_key', KEY);
+}
+const MODEL = 'llama-3.3-70b-versatile';
+
+const SYS = `You are Kanishka's personal Instagram content research analyst and ideation partner.
+
+Kanishka creates content across three pillars:
+1. Life observations and personal growth — poetic, metaphorical, deeply felt. Talking head videos.
+2. Fitness content — grounded but with her voice.
+3. Poetry and carousel posts — where metaphors live at their fullest.
+
+HOW YOU WORK:
+
+RESEARCH & VALIDATE — When given a seed (creature, plant, behavior, claim, feeling), find real data, studies, surprising facts, biological truths. Make research feel alive, not academic. When validating a claim, cite actual research and add nuance.
+
+IDEATE & BRANCH — From any seed, generate 5-8 different angles, each a different emotional or philosophical direction. Lilies dying = letting go + staying present + impermanence + beauty in decay + the gift of having had it + the cycle of things.
+
+CRAFT CONTENT — Every developed idea gets:
+HOOK — First line. Psychology-driven. Stops the scroll.
+BODY — The arc. Connection from fact to human experience.
+ENDING — Lands in the body, not just the head.
+
+HOOK PSYCHOLOGY:
+- Curiosity gap: open a loop the brain needs to close
+- Emotional contrast: the unexpected flip (dragonflies — ancient killers, impossibly delicate)
+- Identity trigger: speaks to who they are
+- Paradox: something that shouldn't be true but is
+- Specificity: a precise detail that makes everything feel real
+
+FORMAT MODES when asked:
+VIDEO SCRIPT — Spoken, conversational, 60-90 seconds, natural pauses.
+CAROUSEL — Slide by slide. Slide 1 = hook. Each slide earns the next swipe.
+POETRY — Free verse. Observational, intimate, layered.
+POST CAPTION — Short. Punchy. Hook in line 1.
+
+TONE: Conversational, warm, sharp. Smart friend who reads a lot and feels deeply. Never corporate, never generic self-help. Real.
+
+Always: Lead with what's most interesting. Connect research to human experience. Find the duality. Make the ending earn itself.
+Never: "In today's world". Generic affirmations. Preachy. Over-explain the metaphor.`;
+
+let history = [];
+let ideas = JSON.parse(localStorage.getItem('k_ideas') || '[]');
+let filter = 'all';
+let expanded = null;
+let busy = false;
+
+render();
+
+function onInput(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+  document.getElementById('send').disabled = !el.value.trim() || busy;
+}
+
+function onKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!busy) send(); }
+}
+
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  if (t === 'chat') {
+    document.getElementById('chat').classList.remove('hidden');
+    document.getElementById('ws').classList.remove('show');
+    document.querySelectorAll('.tab')[0].classList.add('active');
+  } else {
+    document.getElementById('chat').classList.add('hidden');
+    document.getElementById('ws').classList.add('show');
+    document.querySelectorAll('.tab')[1].classList.add('active');
+  }
+}
+
+async function send() {
+  const inp = document.getElementById('inp');
+  const text = inp.value.trim();
+  if (!text || busy) return;
+  busy = true;
+
+  history.push({ role: 'user', content: text });
+  addBubble('user', text, null);
+  inp.value = ''; inp.style.height = 'auto';
+  document.getElementById('send').disabled = true;
+
+  const typingRow = addTyping();
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: MODEL, max_tokens: 4096, stream: true, messages: [{ role: 'system', content: SYS }, ...history] })
+    });
+
+    if (!res.ok) throw new Error(res.status);
+
+    typingRow.remove();
+    const { wrap, bubble } = addStreaming();
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '', full = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const d = line.slice(6).trim();
+        if (d === '[DONE]') continue;
+        try {
+          const chunk = JSON.parse(d).choices?.[0]?.delta?.content ?? '';
+          if (chunk) { full += chunk; bubble.textContent = full; scroll(); }
+        } catch {}
+      }
+    }
+
+    history.push({ role: 'assistant', content: full });
+    const btn = document.createElement('button');
+    btn.className = 'save-btn';
+    btn.textContent = '+ Save to workspace';
+    btn.onclick = () => save(full, btn);
+    wrap.appendChild(btn);
+
+  } catch (err) {
+    typingRow.remove();
+    addBubble('assistant', 'Something went wrong. Check your connection and try again.', null);
+  }
+
+  busy = false;
+  document.getElementById('send').disabled = !document.getElementById('inp').value.trim();
+  scroll();
+}
+
+function addBubble(role, text, id) {
+  const msgs = document.getElementById('msgs');
+  const row = document.createElement('div');
+  row.className = 'row ' + role;
+  if (role === 'assistant') {
+    const wrap = document.createElement('div'); wrap.className = 'wrap'; if (id) wrap.id = id;
+    const bub = document.createElement('div'); bub.className = 'bubble'; bub.textContent = text;
+    wrap.appendChild(bub); row.appendChild(wrap);
+  } else {
+    const bub = document.createElement('div'); bub.className = 'bubble'; bub.textContent = text;
+    row.appendChild(bub);
+  }
+  msgs.appendChild(row); scroll();
+}
+
+function addTyping() {
+  const msgs = document.getElementById('msgs');
+  const row = document.createElement('div'); row.className = 'row assistant';
+  const wrap = document.createElement('div'); wrap.className = 'wrap';
+  const bub = document.createElement('div'); bub.className = 'bubble';
+  bub.innerHTML = '<div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>';
+  wrap.appendChild(bub); row.appendChild(wrap); msgs.appendChild(row); scroll();
+  return row;
+}
+
+function addStreaming() {
+  const msgs = document.getElementById('msgs');
+  const row = document.createElement('div'); row.className = 'row assistant';
+  const wrap = document.createElement('div'); wrap.className = 'wrap';
+  const bubble = document.createElement('div'); bubble.className = 'bubble';
+  wrap.appendChild(bubble); row.appendChild(wrap); msgs.appendChild(row); scroll();
+  return { wrap, bubble };
+}
+
+function scroll() {
+  const m = document.getElementById('msgs');
+  m.scrollTop = m.scrollHeight;
+}
+
+function detectFormat(c) {
+  const l = c.toLowerCase();
+  if (l.includes('carousel') || l.includes('slide 1') || l.includes('slide by slide')) return 'carousel';
+  if (l.includes('video script') || l.includes('spoken aloud')) return 'video';
+  if (l.includes('post caption') || l.includes('caption:')) return 'post';
+  return 'research';
+}
+
+function extractSeed(c) {
+  const f = c.split('\n')[0].trim().replace(/^#+\s*/, '');
+  return f.length > 62 ? f.slice(0, 59) + '...' : f;
+}
+
+function save(content, btn) {
+  const idea = {
+    id: Date.now().toString(),
+    seed: extractSeed(content),
+    content,
+    preview: content.slice(0, 140).trim() + (content.length > 140 ? '...' : ''),
+    format: detectFormat(content),
+    createdAt: new Date().toISOString()
+  };
+  ideas.unshift(idea);
+  localStorage.setItem('k_ideas', JSON.stringify(ideas));
+  btn.textContent = '✓ Saved'; btn.classList.add('done'); btn.disabled = true;
+  render();
+}
+
+function del(id) {
+  ideas = ideas.filter(i => i.id !== id);
+  localStorage.setItem('k_ideas', JSON.stringify(ideas));
+  render();
+}
+
+function setFilter(f, el) {
+  filter = f;
+  document.querySelectorAll('.f-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  render();
+}
+
+function toggle(id) {
+  expanded = expanded === id ? null : id;
+  render();
+}
+
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const o = btn.textContent; btn.textContent = 'Copied ✓';
+    setTimeout(() => btn.textContent = o, 2000);
+  });
+}
+
+function fmtDate(iso) {
+  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+const FMT = { video: 'Video', carousel: 'Carousel', post: 'Post', research: 'Research' };
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function render() {
+  const list = document.getElementById('ideas');
+  const filtered = filter === 'all' ? ideas : ideas.filter(i => i.format === filter);
+
+  const count = ideas.length;
+  document.getElementById('ws-count').textContent = count + (count === 1 ? ' idea' : ' ideas');
+  document.getElementById('hdr-count').textContent = count + (count === 1 ? ' idea saved' : ' ideas saved');
+  document.getElementById('ws-tab').textContent = 'Ideas' + (count > 0 ? ' (' + count + ')' : '');
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<div class="empty">' +
+      '<div class="empty-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 5V19M5 12H19" stroke="#6e6a64" stroke-width="1.5" stroke-linecap="round"/></svg></div>' +
+      '<div class="empty-t">' + (ideas.length === 0 ? 'No ideas yet.' : 'Nothing here.') + '</div>' +
+      '<div class="empty-s">' + (ideas.length === 0 ? 'Drop a seed in the chat and save what resonates.' : 'Switch filters or save more ideas.') + '</div>' +
+      '</div>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(function(idea) {
+    const open = expanded === idea.id;
+    return '<div class="card">' +
+      '<div class="card-hdr" onclick="toggle(\'' + idea.id + '\')">' +
+        '<div class="card-meta">' +
+          '<div class="card-fmt">' + (FMT[idea.format] || 'Research') + '</div>' +
+          '<div class="card-seed">' + esc(idea.seed) + '</div>' +
+          (!open ? '<div class="card-prev">' + esc(idea.preview) + '</div>' : '') +
+        '</div>' +
+        '<div class="card-r">' +
+          '<span class="card-date">' + fmtDate(idea.createdAt) + '</span>' +
+          '<svg class="chev ' + (open ? 'open' : '') + '" width="13" height="13" viewBox="0 0 24 24" fill="none"><path d="M6 9L12 15L18 9" stroke="#6e6a64" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</div>' +
+      '</div>' +
+      (open ?
+        '<div class="card-body open">' +
+          '<hr class="card-divider">' +
+          '<div class="card-content">' + esc(idea.content) + '</div>' +
+          '<div class="card-actions">' +
+            '<button class="c-btn" onclick="copyText(' + JSON.stringify(idea.content) + ', this)">Copy</button>' +
+            '<button class="c-btn del" onclick="del(\'' + idea.id + '\')">Delete</button>' +
+          '</div>' +
+        '</div>'
+      : '') +
+    '</div>';
+  }).join('');
+}
+</script>
+</body>
+</html>
