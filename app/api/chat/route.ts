@@ -1,9 +1,8 @@
-import Anthropic from '@anthropic-ai/sdk'
+import Groq from 'groq-sdk'
 import { SYSTEM_PROMPT } from '@/lib/prompts'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
 export async function POST(req: Request) {
+  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY ?? '' })
   try {
     const { messages, searchContext } = await req.json()
 
@@ -13,22 +12,23 @@ export async function POST(req: Request) {
         ? `\n\n---\nRELEVANT RESEARCH (from live web search):\n${searchContext}\n\nUse this research to validate, enrich, or fact-check your response.`
         : '')
 
-    const stream = client.messages.stream({
-      model: 'claude-sonnet-4-6',
+    const stream = await groq.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
       max_tokens: 4096,
-      system,
-      messages,
+      stream: true,
+      messages: [
+        { role: 'system', content: system },
+        ...messages,
+      ],
     })
 
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of stream) {
-            if (
-              chunk.type === 'content_block_delta' &&
-              chunk.delta.type === 'text_delta'
-            ) {
-              controller.enqueue(new TextEncoder().encode(chunk.delta.text))
+            const text = chunk.choices[0]?.delta?.content ?? ''
+            if (text) {
+              controller.enqueue(new TextEncoder().encode(text))
             }
           }
           controller.close()
