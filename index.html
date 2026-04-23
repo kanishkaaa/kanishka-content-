@@ -23,6 +23,12 @@
     .tab { padding: 6px 12px; font-size: 12px; border: none; border-radius: 8px; cursor: pointer; background: transparent; color: var(--muted); font-family: inherit; transition: all 0.15s; }
     .tab.active { background: var(--accent); color: #070707; font-weight: 500; }
     .hdr-right { font-size: 11px; color: var(--muted); opacity: 0.45; }
+    .key-bar { display: flex; align-items: center; gap: 8px; background: rgba(212,169,106,0.08); border: 1px solid rgba(212,169,106,0.3); border-radius: 12px; padding: 8px 14px; }
+    .key-bar input { background: transparent; border: none; outline: none; color: var(--text); font-size: 12px; font-family: monospace; width: 280px; }
+    .key-bar input::placeholder { color: var(--muted); font-family: inherit; }
+    .key-bar-label { font-size: 11px; color: var(--accent); white-space: nowrap; }
+    .key-save { padding: 4px 10px; font-size: 11px; background: var(--accent); color: #070707; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-weight: 500; }
+    .key-saved { display: none; font-size: 11px; color: var(--accent); }
 
     main { flex: 1; display: flex; overflow: hidden; }
 
@@ -118,6 +124,12 @@
     <div class="logo-name">kanishka.</div>
     <div class="logo-sub">content engine</div>
   </div>
+  <div class="key-bar" id="key-bar">
+    <span class="key-bar-label">Groq key</span>
+    <input id="key-input" type="password" placeholder="gsk_..." />
+    <button class="key-save" onclick="saveKey()">Save</button>
+    <span class="key-saved" id="key-saved">✓ Connected</span>
+  </div>
   <div class="tabs">
     <button class="tab active" onclick="switchTab('chat')">Research</button>
     <button class="tab" id="ws-tab" onclick="switchTab('workspace')">Ideas</button>
@@ -168,9 +180,23 @@
 
 <script>
 let KEY = localStorage.getItem('k_groq_key') || '';
-if (!KEY) {
-  KEY = prompt('Paste your Groq API key (free at console.groq.com):') || '';
-  if (KEY) localStorage.setItem('k_groq_key', KEY);
+
+function saveKey() {
+  const val = document.getElementById('key-input').value.trim();
+  if (!val) return;
+  KEY = val;
+  localStorage.setItem('k_groq_key', KEY);
+  document.getElementById('key-input').value = '';
+  document.querySelector('.key-save').style.display = 'none';
+  document.getElementById('key-saved').style.display = 'inline';
+}
+
+// Show connected state if key already saved
+if (KEY) {
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelector('.key-save').style.display = 'none';
+    document.getElementById('key-saved').style.display = 'inline';
+  });
 }
 const MODEL = 'llama-3.3-70b-versatile';
 
@@ -296,7 +322,16 @@ async function send() {
 
   } catch (err) {
     typingRow.remove();
-    addBubble('assistant', 'Something went wrong. Check your connection and try again.', null);
+    const msg = err && err.message ? err.message : String(err);
+    if (msg.includes('401') || msg.includes('invalid_api_key') || msg.includes('auth')) {
+      localStorage.removeItem('k_groq_key');
+      KEY = '';
+      document.querySelector('.key-save').style.display = 'inline';
+      document.getElementById('key-saved').style.display = 'none';
+      addBubble('assistant', 'API key invalid — paste your Groq key in the box at the top and hit Save.', null);
+    } else {
+      addBubble('assistant', 'Error: ' + msg, null);
+    }
   }
 
   busy = false;
