@@ -64,7 +64,9 @@ export default function Home() {
         </div>
 
         {/* Mobile tab switcher */}
-        <div className="flex md:hidden gap-1 bg-surface border border-border rounded-xl p-1">
+        <div className="flex md:hidden items-center gap-2">
+        <a href="/rhythm" className="text-muted text-xs opacity-30 hover:text-accent hover:opacity-80 transition-colors px-1">♩</a>
+        <div className="flex gap-1 bg-surface border border-border rounded-xl p-1">
           <button
             onClick={() => setActiveTab('chat')}
             className={`px-3 py-1.5 text-xs rounded-lg transition-colors ${
@@ -86,9 +88,16 @@ export default function Home() {
             Ideas {ideas.length > 0 && `(${ideas.length})`}
           </button>
         </div>
+        </div>
 
-        {/* Desktop idea count */}
-        <div className="hidden md:flex items-center gap-1.5">
+        {/* Desktop idea count + rhythm link */}
+        <div className="hidden md:flex items-center gap-4">
+          <a
+            href="/rhythm"
+            className="text-xs text-muted opacity-40 hover:text-accent hover:opacity-100 transition-colors"
+          >
+            ♩ rhythm
+          </a>
           <span className="text-muted text-xs opacity-50">
             {ideas.length} {ideas.length === 1 ? 'idea' : 'ideas'} saved
           </span>
